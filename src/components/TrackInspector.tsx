@@ -5,6 +5,7 @@ import { Checkbox } from './ui/checkbox';
 import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import type { MIDITrack, OutputTrackConfig } from '@/lib/midi/types';
 
 interface TrackInspectorProps {
@@ -87,106 +88,108 @@ export function TrackInspector({
           </Badge>
         </div>
 
-        <div className="space-y-2">
-          <div className="grid grid-cols-[auto,2fr,1fr,1fr,1fr,auto,auto,1fr] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b">
-            <div>Include</div>
-            <div>Track Name</div>
-            <div>Channels</div>
-            <div>Notes</div>
-            <div>Events</div>
-            <div className="text-center">Mute</div>
-            <div className="text-center">Solo</div>
-            <div>Assign to</div>
-          </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[60px]">Include</TableHead>
+              <TableHead>Track Name</TableHead>
+              <TableHead>Channels</TableHead>
+              <TableHead>Notes</TableHead>
+              <TableHead>Events</TableHead>
+              <TableHead className="text-center w-[80px]">Mute</TableHead>
+              <TableHead className="text-center w-[80px]">Solo</TableHead>
+              <TableHead>Assign to</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tracks.map((track) => {
+              const trackState = trackStates?.get(track.index) || { muted: false, solo: false };
+              return (
+                <TableRow key={track.index}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedTracks.has(track.index)}
+                      onCheckedChange={() => handleTrackToggle(track.index)}
+                      aria-label={`Include track ${track.name}`}
+                    />
+                  </TableCell>
 
-          {tracks.map((track) => {
-            const trackState = trackStates?.get(track.index) || { muted: false, solo: false };
-            return (
-              <div
-                key={track.index}
-                className="grid grid-cols-[auto,2fr,1fr,1fr,1fr,auto,auto,1fr] gap-4 px-4 py-3 rounded-lg hover:bg-accent/50 transition-colors items-center"
-              >
-                <div className="flex items-center">
-                  <Checkbox
-                    checked={selectedTracks.has(track.index)}
-                    onCheckedChange={() => handleTrackToggle(track.index)}
-                    aria-label={`Include track ${track.name}`}
-                  />
-                </div>
+                  <TableCell className="font-medium">
+                    {track.name}
+                  </TableCell>
 
-                <div className="flex items-center">
-                  <span className="font-medium truncate">{track.name}</span>
-                </div>
+                  <TableCell>
+                    <div className="flex gap-1 flex-wrap">
+                      {Array.from(track.channels).map(ch => (
+                        <Badge key={ch} variant="outline" className="text-xs">
+                          {ch + 1}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
 
-                <div className="flex items-center gap-1 flex-wrap">
-                  {Array.from(track.channels).map(ch => (
-                    <Badge key={ch} variant="outline" className="text-xs">
-                      {ch + 1}
-                    </Badge>
-                  ))}
-                </div>
+                  <TableCell className="text-muted-foreground">
+                    {track.noteRange 
+                      ? `${track.noteRange.min}-${track.noteRange.max}`
+                      : '-'
+                    }
+                  </TableCell>
 
-                <div className="flex items-center text-sm text-muted-foreground">
-                  {track.noteRange 
-                    ? `${track.noteRange.min}-${track.noteRange.max}`
-                    : '-'
-                  }
-                </div>
+                  <TableCell className="text-muted-foreground">
+                    {track.eventCount.toLocaleString()}
+                  </TableCell>
 
-                <div className="flex items-center text-sm text-muted-foreground">
-                  {track.eventCount.toLocaleString()}
-                </div>
+                  <TableCell className="text-center">
+                    <Button
+                      variant={trackState.muted ? 'default' : 'outline'}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => onToggleMute?.(track.index)}
+                      disabled={!onToggleMute}
+                    >
+                      {trackState.muted ? (
+                        <VolumeX className="h-4 w-4" />
+                      ) : (
+                        <Volume2 className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </TableCell>
 
-                <div className="flex items-center justify-center">
-                  <Button
-                    variant={trackState.muted ? 'default' : 'outline'}
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => onToggleMute?.(track.index)}
-                    disabled={!onToggleMute}
-                  >
-                    {trackState.muted ? (
-                      <VolumeX className="h-4 w-4" />
-                    ) : (
-                      <Volume2 className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                  <TableCell className="text-center">
+                    <Button
+                      variant={trackState.solo ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-8 w-16 font-semibold"
+                      onClick={() => onToggleSolo?.(track.index)}
+                      disabled={!onToggleSolo}
+                    >
+                      S
+                    </Button>
+                  </TableCell>
 
-                <div className="flex items-center justify-center">
-                  <Button
-                    variant={trackState.solo ? 'default' : 'outline'}
-                    size="sm"
-                    className="h-8 w-16 font-semibold"
-                    onClick={() => onToggleSolo?.(track.index)}
-                    disabled={!onToggleSolo}
-                  >
-                    S
-                  </Button>
-                </div>
-
-                <div className="flex items-center">
-                  <Select
-                    value={getAssignment(track.index)}
-                    onValueChange={(value) => handleAssignmentChange(track.index, value)}
-                    disabled={!selectedTracks.has(track.index)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="None">None</SelectItem>
-                      <SelectItem value="A">Track A</SelectItem>
-                      <SelectItem value="B">Track B</SelectItem>
-                      <SelectItem value="C">Track C</SelectItem>
-                      <SelectItem value="D">Track D</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  <TableCell>
+                    <Select
+                      value={getAssignment(track.index)}
+                      onValueChange={(value) => handleAssignmentChange(track.index, value)}
+                      disabled={!selectedTracks.has(track.index)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="None">None</SelectItem>
+                        <SelectItem value="A">Track A</SelectItem>
+                        <SelectItem value="B">Track B</SelectItem>
+                        <SelectItem value="C">Track C</SelectItem>
+                        <SelectItem value="D">Track D</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       </div>
     </Card>
   );
