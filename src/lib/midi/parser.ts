@@ -1,5 +1,6 @@
 import { Midi } from '@tonejs/midi';
 import type { MIDIHeader, MIDITrack, ParsedMIDI, MIDIEvent } from './types';
+import { DRUM_CHANNEL, TIME_SIGNATURE_NUMERATOR } from './constants';
 
 export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
   const arrayBuffer = await file.arrayBuffer();
@@ -23,8 +24,8 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
 
     // Process notes and detect channels
     track.notes.forEach(note => {
-      // @tonejs/midi uses 'name' which includes channel info, but we'll default to 0
-      const channel = 0; // Default channel, tracks in tonejs/midi don't expose channel directly
+      // Use channel from track if available, otherwise default to 0
+      const channel = track.channel !== undefined ? track.channel : 0;
       channels.add(channel);
       noteMin = Math.min(noteMin, note.midi);
       noteMax = Math.max(noteMax, note.midi);
@@ -51,10 +52,15 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
       });
     });
 
-    // Check if track name suggests drums
-    const trackNameLower = (track.name || '').toLowerCase();
-    if (trackNameLower.includes('drum') || trackNameLower.includes('perc')) {
+    // Check if track uses drum channel (channel 10 = index 9) or instrument is percussion
+    if (track.channel === DRUM_CHANNEL || track.instrument?.percussion) {
       isDrums = true;
+    } else {
+      // Also check track name as fallback
+      const trackNameLower = (track.name || '').toLowerCase();
+      if (trackNameLower.includes('drum') || trackNameLower.includes('perc')) {
+        isDrums = true;
+      }
     }
 
     // Detect program change (instrument selection)
@@ -65,7 +71,7 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
     // Process control changes
     Object.entries(track.controlChanges).forEach(([controller, ccList]) => {
       ccList.forEach(cc => {
-        const channel = 0; // Default channel
+        const channel = track.channel !== undefined ? track.channel : 0;
         events.push({
           type: 'cc',
           deltaTime: 0,
@@ -112,16 +118,16 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
 }
 
 export function calculateSteps(ticks: number, ppq: number, stepsPerBar: number): number {
-  const ticksPerStep = (ppq * 4) / stepsPerBar; // Assuming 4/4 time
+  const ticksPerStep = (ppq * TIME_SIGNATURE_NUMERATOR) / stepsPerBar;
   return Math.ceil(ticks / ticksPerStep);
 }
 
 export function ticksToSteps(ticks: number, ppq: number, stepsPerBar: number): number {
-  const ticksPerStep = (ppq * 4) / stepsPerBar;
+  const ticksPerStep = (ppq * TIME_SIGNATURE_NUMERATOR) / stepsPerBar;
   return Math.floor(ticks / ticksPerStep);
 }
 
 export function stepsToTicks(steps: number, ppq: number, stepsPerBar: number): number {
-  const ticksPerStep = (ppq * 4) / stepsPerBar;
+  const ticksPerStep = (ppq * TIME_SIGNATURE_NUMERATOR) / stepsPerBar;
   return steps * ticksPerStep;
 }

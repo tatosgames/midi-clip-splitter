@@ -47,22 +47,14 @@ export function MidiPlayer({
         </div>
 
         {/* Progress Bar */}
-        <div className="space-y-2">
-          <Slider
-            value={[position]}
-            max={duration || 100}
-            step={0.1}
-            onValueChange={([value]) => onSeek(value)}
-            disabled={!isInitialized}
-            className="cursor-pointer"
-          />
-          <div className="h-1 bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-100"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
+        <Slider
+          value={[position]}
+          max={duration || 100}
+          step={0.1}
+          onValueChange={([value]) => onSeek(value)}
+          disabled={!isInitialized}
+          className="cursor-pointer"
+        />
 
         {/* Transport Controls */}
         <div className="flex items-center justify-center gap-2">

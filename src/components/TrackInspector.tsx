@@ -33,6 +33,8 @@ export function TrackInspector({
     const newSelected = new Set(selectedTracks);
     if (newSelected.has(trackIndex)) {
       newSelected.delete(trackIndex);
+      // Remove from any assignment when deselected
+      handleAssignmentChange(trackIndex, 'None');
     } else {
       newSelected.add(trackIndex);
     }

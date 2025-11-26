@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 import Soundfont from 'soundfont-player';
 import type { ParsedMIDI, MIDITrack } from './types';
 import { getInstrumentName } from './gm-instruments';
+import { DEFAULT_BPM } from './constants';
 
 export interface TrackSynth {
   instrument: any; // Soundfont player instance
@@ -31,8 +32,14 @@ export class MidiPlayer {
     this.parsedMidi = midi;
     this.audioContext = Tone.context.rawContext as AudioContext;
 
+    // Read BPM from MIDI file, fallback to default
+    const midiData = midi as any;
+    const bpm = (midiData.header?.tempos?.[0]?.bpm) || DEFAULT_BPM;
+    
+    // Set Tone.js transport BPM
+    Tone.Transport.bpm.value = bpm;
+
     // Calculate duration in seconds
-    const bpm = 120; // Default tempo
     const beatsPerTick = 1 / midi.header.ppq;
     const secondsPerBeat = 60 / bpm;
     this.duration = (midi.duration * beatsPerTick * secondsPerBeat);
@@ -89,7 +96,7 @@ export class MidiPlayer {
         if (event.type === 'noteOn' && instrument) {
           // Schedule note with Tone.js timing but play with soundfont
           const now = Tone.now();
-          const when = time - now;
+          const when = Math.max(0, time - now); // Prevent negative timing
           
           instrument.play(
             event.note,
@@ -290,6 +297,8 @@ export class MidiPlayer {
 
   dispose() {
     this.stop();
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
     this.tracks.forEach(({ instrument, part }) => {
       part?.dispose();
       if (instrument && typeof instrument.stop === 'function') {
@@ -301,5 +310,7 @@ export class MidiPlayer {
     });
     this.tracks.clear();
     this.audioContext = null;
+    this.loadingProgress = 0;
+    this.totalTracksToLoad = 0;
   }
 }
