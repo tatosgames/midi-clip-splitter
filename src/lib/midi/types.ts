@@ -28,6 +28,8 @@ export interface MIDITrack {
   channels: Set<number>;
   noteRange: { min: number; max: number } | null;
   eventCount: number;
+  program?: number; // GM instrument number (0-127)
+  isDrums?: boolean; // true if track uses channel 10 (drums)
 }
 
 export interface ParsedMIDI {

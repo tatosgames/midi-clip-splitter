@@ -8,12 +8,16 @@ export function useMidiPlayer(parsedMidi: ParsedMIDI | null) {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [trackStates, setTrackStates] = useState<Map<number, { muted: boolean; solo: boolean }>>(new Map());
   const animationFrameRef = useRef<number>();
+  const loadingIntervalRef = useRef<number>();
 
   useEffect(() => {
     if (!parsedMidi) {
       setIsInitialized(false);
+      setIsLoading(false);
       return;
     }
 
@@ -22,9 +26,33 @@ export function useMidiPlayer(parsedMidi: ParsedMIDI | null) {
         playerRef.current = new MidiPlayer();
       }
       
+      setIsLoading(true);
+      setLoadingProgress(0);
+      
+      // Poll loading progress
+      loadingIntervalRef.current = window.setInterval(() => {
+        if (playerRef.current) {
+          const progress = playerRef.current.getLoadingProgress();
+          setLoadingProgress(progress);
+          
+          if (playerRef.current.isLoadingComplete()) {
+            if (loadingIntervalRef.current) {
+              clearInterval(loadingIntervalRef.current);
+            }
+          }
+        }
+      }, 100);
+      
       await playerRef.current.initialize(parsedMidi);
+      
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current);
+      }
+      
       setDuration(playerRef.current.getDuration());
       setIsInitialized(true);
+      setIsLoading(false);
+      setLoadingProgress(100);
       
       // Initialize track states
       const states = new Map();
@@ -39,6 +67,9 @@ export function useMidiPlayer(parsedMidi: ParsedMIDI | null) {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (loadingIntervalRef.current) {
+        clearInterval(loadingIntervalRef.current);
       }
       playerRef.current?.dispose();
       playerRef.current = null;
@@ -134,6 +165,8 @@ export function useMidiPlayer(parsedMidi: ParsedMIDI | null) {
     position,
     duration,
     isInitialized,
+    isLoading,
+    loadingProgress,
     trackStates,
     play,
     pause,

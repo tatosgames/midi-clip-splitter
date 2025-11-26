@@ -26,6 +26,8 @@ const Index = () => {
     position,
     duration,
     isInitialized,
+    isLoading,
+    loadingProgress,
     trackStates,
     play,
     pause,
@@ -91,6 +93,8 @@ const Index = () => {
                 position={position}
                 duration={duration}
                 isInitialized={isInitialized}
+                isLoading={isLoading}
+                loadingProgress={loadingProgress}
                 onPlay={play}
                 onPause={pause}
                 onStop={stop}

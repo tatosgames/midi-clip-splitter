@@ -16,12 +16,16 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
     let noteMin = 127;
     let noteMax = 0;
     let hasNotes = false;
+    let program: number | undefined;
+    let isDrums = false;
 
     const events: MIDIEvent[] = [];
 
-    // Process notes
+    // Process notes and detect channels
     track.notes.forEach(note => {
-      channels.add(note.midi % 16); // Approximate channel from note
+      // @tonejs/midi uses 'name' which includes channel info, but we'll default to 0
+      const channel = 0; // Default channel, tracks in tonejs/midi don't expose channel directly
+      channels.add(channel);
       noteMin = Math.min(noteMin, note.midi);
       noteMax = Math.max(noteMax, note.midi);
       hasNotes = true;
@@ -32,7 +36,7 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
         type: 'noteOn',
         deltaTime: 0, // Will be calculated later
         absoluteTime,
-        channel: note.midi % 16,
+        channel,
         note: note.midi,
         velocity: Math.round(note.velocity * 127),
       });
@@ -41,20 +45,32 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
         type: 'noteOff',
         deltaTime: 0,
         absoluteTime: absoluteTime + Math.round(note.durationTicks),
-        channel: note.midi % 16,
+        channel,
         note: note.midi,
         velocity: 0,
       });
     });
 
+    // Check if track name suggests drums
+    const trackNameLower = (track.name || '').toLowerCase();
+    if (trackNameLower.includes('drum') || trackNameLower.includes('perc')) {
+      isDrums = true;
+    }
+
+    // Detect program change (instrument selection)
+    if (track.instrument) {
+      program = track.instrument.number;
+    }
+
     // Process control changes
     Object.entries(track.controlChanges).forEach(([controller, ccList]) => {
       ccList.forEach(cc => {
+        const channel = 0; // Default channel
         events.push({
           type: 'cc',
           deltaTime: 0,
           absoluteTime: Math.round(cc.ticks),
-          channel: 0, // Default channel
+          channel,
           controller: parseInt(controller),
           value: Math.round(cc.value * 127),
         });
@@ -78,6 +94,8 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
       channels,
       noteRange: hasNotes ? { min: noteMin, max: noteMax } : null,
       eventCount: events.length,
+      program,
+      isDrums,
     };
   });
 

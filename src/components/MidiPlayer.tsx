@@ -1,4 +1,4 @@
-import { Play, Pause, Square } from 'lucide-react';
+import { Play, Pause, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Card } from '@/components/ui/card';
@@ -8,6 +8,8 @@ interface MidiPlayerProps {
   position: number;
   duration: number;
   isInitialized: boolean;
+  isLoading?: boolean;
+  loadingProgress?: number;
   onPlay: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -19,6 +21,8 @@ export function MidiPlayer({
   position,
   duration,
   isInitialized,
+  isLoading = false,
+  loadingProgress = 0,
   onPlay,
   onPause,
   onStop,
@@ -85,7 +89,16 @@ export function MidiPlayer({
           </Button>
         </div>
 
-        {!isInitialized && (
+        {isLoading && (
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-center text-sm text-muted-foreground">
+              Loading instruments... {Math.round(loadingProgress)}%
+            </p>
+          </div>
+        )}
+
+        {!isInitialized && !isLoading && (
           <p className="text-center text-sm text-muted-foreground">
             Upload a MIDI file to enable preview
           </p>
