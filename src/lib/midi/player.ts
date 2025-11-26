@@ -1,11 +1,14 @@
 import * as Tone from 'tone';
+import Soundfont from 'soundfont-player';
 import type { ParsedMIDI, MIDITrack } from './types';
+import { getInstrumentName } from './gm-instruments';
 
 export interface TrackSynth {
-  synth: Tone.PolySynth;
+  instrument: any; // Soundfont player instance
   part: Tone.Part | null;
   muted: boolean;
   solo: boolean;
+  isLoaded: boolean;
 }
 
 export class MidiPlayer {
@@ -13,6 +16,9 @@ export class MidiPlayer {
   private parsedMidi: ParsedMIDI | null = null;
   private isPlaying = false;
   private duration = 0;
+  private audioContext: AudioContext | null = null;
+  private loadingProgress = 0;
+  private totalTracksToLoad = 0;
 
   constructor() {
     // Initialize Tone.js with better defaults
@@ -23,6 +29,7 @@ export class MidiPlayer {
     await Tone.start();
     this.dispose();
     this.parsedMidi = midi;
+    this.audioContext = Tone.context.rawContext as AudioContext;
 
     // Calculate duration in seconds
     const bpm = 120; // Default tempo
@@ -30,9 +37,88 @@ export class MidiPlayer {
     const secondsPerBeat = 60 / bpm;
     this.duration = (midi.duration * beatsPerTick * secondsPerBeat);
 
-    // Create a synth for each track
-    midi.tracks.forEach((track, index) => {
-      const synth = new Tone.PolySynth(Tone.Synth, {
+    // Initialize loading tracking
+    this.loadingProgress = 0;
+    this.totalTracksToLoad = midi.tracks.length;
+
+    // Load instruments for each track
+    await Promise.all(
+      midi.tracks.map(async (track, index) => {
+        await this.loadTrackInstrument(track, index, midi.header.ppq, bpm);
+        this.loadingProgress++;
+      })
+    );
+
+    Tone.Transport.position = 0;
+    Tone.Transport.loop = false;
+  }
+
+  private async loadTrackInstrument(
+    track: MIDITrack,
+    index: number,
+    ppq: number,
+    bpm: number
+  ) {
+    if (!this.audioContext) return;
+
+    // Determine which instrument to load
+    let instrumentName: string;
+    
+    if (track.isDrums) {
+      // Use a drum kit for channel 10
+      instrumentName = 'synth_drum';
+    } else if (track.program !== undefined) {
+      // Use the program number from the MIDI file
+      instrumentName = getInstrumentName(track.program);
+    } else {
+      // Default to piano
+      instrumentName = 'acoustic_grand_piano';
+    }
+
+    try {
+      // Load instrument from CDN
+      const instrument = await Soundfont.instrument(
+        this.audioContext,
+        instrumentName as any,
+        {
+          soundfont: 'MusyngKite',
+          nameToUrl: (name: string, soundfont: string, format: string) => {
+            return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
+          },
+        }
+      );
+
+      const events = this.convertTrackToEvents(track, ppq, bpm);
+      
+      const part = new Tone.Part((time, event) => {
+        if (event.type === 'noteOn' && instrument) {
+          // Schedule note with Tone.js timing but play with soundfont
+          const now = Tone.now();
+          const when = time - now;
+          
+          instrument.play(
+            event.note,
+            this.audioContext!.currentTime + when,
+            {
+              duration: event.duration,
+              gain: event.velocity / 127,
+            }
+          );
+        }
+      }, events);
+
+      this.tracks.set(index, {
+        instrument,
+        part,
+        muted: false,
+        solo: false,
+        isLoaded: true,
+      });
+    } catch (error) {
+      console.error(`Failed to load instrument for track ${index}:`, error);
+      
+      // Fallback to a simple synth if soundfont loading fails
+      const fallbackSynth = new Tone.PolySynth(Tone.Synth, {
         envelope: {
           attack: 0.005,
           decay: 0.1,
@@ -42,11 +128,11 @@ export class MidiPlayer {
         volume: -6,
       }).toDestination();
 
-      const events = this.convertTrackToEvents(track, midi.header.ppq, bpm);
+      const events = this.convertTrackToEvents(track, ppq, bpm);
       
       const part = new Tone.Part((time, event) => {
         if (event.type === 'noteOn') {
-          synth.triggerAttackRelease(
+          fallbackSynth.triggerAttackRelease(
             Tone.Frequency(event.note, 'midi').toNote(),
             event.duration,
             time,
@@ -56,15 +142,13 @@ export class MidiPlayer {
       }, events);
 
       this.tracks.set(index, {
-        synth,
+        instrument: fallbackSynth,
         part,
         muted: false,
         solo: false,
+        isLoaded: true,
       });
-    });
-
-    Tone.Transport.position = 0;
-    Tone.Transport.loop = false;
+    }
   }
 
   private convertTrackToEvents(track: MIDITrack, ppq: number, bpm: number) {
@@ -118,15 +202,13 @@ export class MidiPlayer {
     const soloTracks = Array.from(this.tracks.entries()).filter(([_, t]) => t.solo);
     const hasSolo = soloTracks.length > 0;
 
-    this.tracks.forEach((trackSynth, index) => {
+    this.tracks.forEach((trackSynth) => {
       const shouldPlay = hasSolo ? trackSynth.solo : !trackSynth.muted;
       
-      if (shouldPlay) {
+      if (shouldPlay && trackSynth.isLoaded) {
         trackSynth.part?.start(0);
-        trackSynth.synth.volume.value = -6;
       } else {
         trackSynth.part?.stop();
-        trackSynth.synth.volume.value = -Infinity;
       }
     });
 
@@ -171,15 +253,17 @@ export class MidiPlayer {
 
   private updateTrackPlayback(trackIndex: number) {
     const trackSynth = this.tracks.get(trackIndex);
-    if (!trackSynth) return;
+    if (!trackSynth || !trackSynth.isLoaded) return;
 
     const hasSolo = Array.from(this.tracks.values()).some(t => t.solo);
     const shouldPlay = hasSolo ? trackSynth.solo : !trackSynth.muted;
 
     if (shouldPlay) {
-      trackSynth.synth.volume.value = -6;
+      if (!trackSynth.part?.state || trackSynth.part.state !== 'started') {
+        trackSynth.part?.start(0);
+      }
     } else {
-      trackSynth.synth.volume.value = -Infinity;
+      trackSynth.part?.stop();
     }
   }
 
@@ -199,12 +283,28 @@ export class MidiPlayer {
     return this.isPlaying && Tone.Transport.state === 'started';
   }
 
+  getLoadingProgress(): number {
+    return this.totalTracksToLoad > 0 
+      ? (this.loadingProgress / this.totalTracksToLoad) * 100 
+      : 0;
+  }
+
+  isLoadingComplete(): boolean {
+    return this.loadingProgress === this.totalTracksToLoad && this.totalTracksToLoad > 0;
+  }
+
   dispose() {
     this.stop();
-    this.tracks.forEach(({ synth, part }) => {
+    this.tracks.forEach(({ instrument, part }) => {
       part?.dispose();
-      synth.dispose();
+      if (instrument && typeof instrument.stop === 'function') {
+        instrument.stop();
+      }
+      if (instrument && typeof instrument.dispose === 'function') {
+        instrument.dispose();
+      }
     });
     this.tracks.clear();
+    this.audioContext = null;
   }
 }
