@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Disc3 } from 'lucide-react';
 import { UploadPanel } from '@/components/UploadPanel';
+import { MidiPlayer } from '@/components/MidiPlayer';
 import { TrackInspector } from '@/components/TrackInspector';
 import { SplitSettings } from '@/components/SplitSettings';
 import { SummaryPanel } from '@/components/SummaryPanel';
 import { ExportPanel } from '@/components/ExportPanel';
 import { parseMIDIFile } from '@/lib/midi/parser';
+import { useMidiPlayer } from '@/hooks/useMidiPlayer';
 import { toast } from 'sonner';
 import type { ParsedMIDI, OutputTrackConfig, SplitSettings as SplitSettingsType } from '@/lib/midi/types';
 
@@ -18,6 +20,20 @@ const Index = () => {
     maxStepsPerClip: 128,
     ppq: 480,
   });
+
+  const {
+    isPlaying,
+    position,
+    duration,
+    isInitialized,
+    trackStates,
+    play,
+    pause,
+    stop,
+    seek,
+    toggleMute,
+    toggleSolo,
+  } = useMidiPlayer(parsedMidi);
 
   const handleFileSelect = async (file: File) => {
     setIsProcessing(true);
@@ -70,10 +86,24 @@ const Index = () => {
           {/* Configuration Section - Only show when file is loaded */}
           {parsedMidi && (
             <>
+              <MidiPlayer
+                isPlaying={isPlaying}
+                position={position}
+                duration={duration}
+                isInitialized={isInitialized}
+                onPlay={play}
+                onPause={pause}
+                onStop={stop}
+                onSeek={seek}
+              />
+
               <TrackInspector
                 tracks={parsedMidi.tracks}
                 configs={configs}
                 onConfigChange={setConfigs}
+                trackStates={trackStates}
+                onToggleMute={toggleMute}
+                onToggleSolo={toggleSolo}
               />
 
               <SplitSettings
