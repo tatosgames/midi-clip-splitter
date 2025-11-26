@@ -110,7 +110,7 @@ export const GM_INSTRUMENTS: Record<number, string> = {
   84: 'lead_5_charang',
   85: 'lead_6_voice',
   86: 'lead_7_fifths',
-  87: 'lead_8_bass_lead',
+  87: 'lead_8_bass__lead',
   
   // Synth Pad (88-95)
   88: 'pad_1_new_age',
@@ -138,7 +138,7 @@ export const GM_INSTRUMENTS: Record<number, string> = {
   106: 'shamisen',
   107: 'koto',
   108: 'kalimba',
-  109: 'bag_pipe',
+  109: 'bagpipe',
   110: 'fiddle',
   111: 'shanai',
   

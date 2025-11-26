@@ -80,12 +80,7 @@ export class MidiPlayer {
       const instrument = await Soundfont.instrument(
         this.audioContext,
         instrumentName as any,
-        {
-          soundfont: 'MusyngKite',
-          nameToUrl: (name: string, soundfont: string, format: string) => {
-            return `https://gleitz.github.io/midi-js-soundfonts/${soundfont}/${name}-${format}.js`;
-          },
-        }
+        { soundfont: 'MusyngKite' }
       );
 
       const events = this.convertTrackToEvents(track, ppq, bpm);
