@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Music, Trash2 } from 'lucide-react';
+import { Music, Volume2, VolumeX } from 'lucide-react';
 import { Card } from './ui/card';
 import { Checkbox } from './ui/checkbox';
+import { Button } from './ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import type { MIDITrack, OutputTrackConfig } from '@/lib/midi/types';
@@ -10,9 +11,19 @@ interface TrackInspectorProps {
   tracks: MIDITrack[];
   configs: Map<string, OutputTrackConfig>;
   onConfigChange: (configs: Map<string, OutputTrackConfig>) => void;
+  trackStates?: Map<number, { muted: boolean; solo: boolean }>;
+  onToggleMute?: (trackIndex: number) => void;
+  onToggleSolo?: (trackIndex: number) => void;
 }
 
-export function TrackInspector({ tracks, configs, onConfigChange }: TrackInspectorProps) {
+export function TrackInspector({ 
+  tracks, 
+  configs, 
+  onConfigChange,
+  trackStates,
+  onToggleMute,
+  onToggleSolo,
+}: TrackInspectorProps) {
   const [selectedTracks, setSelectedTracks] = useState<Set<number>>(
     new Set(tracks.map((_, i) => i))
   );
@@ -77,71 +88,104 @@ export function TrackInspector({ tracks, configs, onConfigChange }: TrackInspect
         </div>
 
         <div className="space-y-2">
-          <div className="grid grid-cols-12 gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b">
-            <div className="col-span-1">Include</div>
-            <div className="col-span-3">Track Name</div>
-            <div className="col-span-2">Channels</div>
-            <div className="col-span-2">Notes</div>
-            <div className="col-span-2">Events</div>
-            <div className="col-span-2">Assign to</div>
+          <div className="grid grid-cols-[auto,2fr,1fr,1fr,1fr,auto,auto,1fr] gap-4 px-4 py-2 text-sm font-medium text-muted-foreground border-b">
+            <div>Include</div>
+            <div>Track Name</div>
+            <div>Channels</div>
+            <div>Notes</div>
+            <div>Events</div>
+            <div className="text-center">Mute</div>
+            <div className="text-center">Solo</div>
+            <div>Assign to</div>
           </div>
 
-          {tracks.map((track) => (
-            <div
-              key={track.index}
-              className="grid grid-cols-12 gap-4 px-4 py-3 rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div className="col-span-1 flex items-center">
-                <Checkbox
-                  checked={selectedTracks.has(track.index)}
-                  onCheckedChange={() => handleTrackToggle(track.index)}
-                  aria-label={`Include track ${track.name}`}
-                />
-              </div>
+          {tracks.map((track) => {
+            const trackState = trackStates?.get(track.index) || { muted: false, solo: false };
+            return (
+              <div
+                key={track.index}
+                className="grid grid-cols-[auto,2fr,1fr,1fr,1fr,auto,auto,1fr] gap-4 px-4 py-3 rounded-lg hover:bg-accent/50 transition-colors items-center"
+              >
+                <div className="flex items-center">
+                  <Checkbox
+                    checked={selectedTracks.has(track.index)}
+                    onCheckedChange={() => handleTrackToggle(track.index)}
+                    aria-label={`Include track ${track.name}`}
+                  />
+                </div>
 
-              <div className="col-span-3 flex items-center">
-                <span className="font-medium truncate">{track.name}</span>
-              </div>
+                <div className="flex items-center">
+                  <span className="font-medium truncate">{track.name}</span>
+                </div>
 
-              <div className="col-span-2 flex items-center gap-1 flex-wrap">
-                {Array.from(track.channels).map(ch => (
-                  <Badge key={ch} variant="outline" className="text-xs">
-                    {ch + 1}
-                  </Badge>
-                ))}
-              </div>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {Array.from(track.channels).map(ch => (
+                    <Badge key={ch} variant="outline" className="text-xs">
+                      {ch + 1}
+                    </Badge>
+                  ))}
+                </div>
 
-              <div className="col-span-2 flex items-center text-sm text-muted-foreground">
-                {track.noteRange 
-                  ? `${track.noteRange.min}-${track.noteRange.max}`
-                  : '-'
-                }
-              </div>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  {track.noteRange 
+                    ? `${track.noteRange.min}-${track.noteRange.max}`
+                    : '-'
+                  }
+                </div>
 
-              <div className="col-span-2 flex items-center text-sm text-muted-foreground">
-                {track.eventCount.toLocaleString()}
-              </div>
+                <div className="flex items-center text-sm text-muted-foreground">
+                  {track.eventCount.toLocaleString()}
+                </div>
 
-              <div className="col-span-2 flex items-center">
-                <Select
-                  value={getAssignment(track.index)}
-                  onValueChange={(value) => handleAssignmentChange(track.index, value)}
-                  disabled={!selectedTracks.has(track.index)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="None">None</SelectItem>
-                    <SelectItem value="A">Track A</SelectItem>
-                    <SelectItem value="B">Track B</SelectItem>
-                    <SelectItem value="C">Track C</SelectItem>
-                    <SelectItem value="D">Track D</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-center">
+                  <Button
+                    variant={trackState.muted ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => onToggleMute?.(track.index)}
+                    disabled={!onToggleMute}
+                  >
+                    {trackState.muted ? (
+                      <VolumeX className="h-4 w-4" />
+                    ) : (
+                      <Volume2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                <div className="flex items-center justify-center">
+                  <Button
+                    variant={trackState.solo ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8 w-16 font-semibold"
+                    onClick={() => onToggleSolo?.(track.index)}
+                    disabled={!onToggleSolo}
+                  >
+                    S
+                  </Button>
+                </div>
+
+                <div className="flex items-center">
+                  <Select
+                    value={getAssignment(track.index)}
+                    onValueChange={(value) => handleAssignmentChange(track.index, value)}
+                    disabled={!selectedTracks.has(track.index)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="None">None</SelectItem>
+                      <SelectItem value="A">Track A</SelectItem>
+                      <SelectItem value="B">Track B</SelectItem>
+                      <SelectItem value="C">Track C</SelectItem>
+                      <SelectItem value="D">Track D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </Card>
