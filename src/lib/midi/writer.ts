@@ -4,10 +4,11 @@ import type { MIDIEvent, MIDIHeader } from './types';
 export function writeMIDIFile(
   events: MIDIEvent[],
   ppq: number,
-  trackName: string
+  trackName: string,
+  tempo = 120
 ): Uint8Array {
   const midi = new Midi();
-  midi.header.setTempo(120); // Set default tempo
+  midi.header.setTempo(tempo);
   
   const track = midi.addTrack();
   track.name = trackName;
@@ -50,14 +51,8 @@ export function writeMIDIFile(
         }
         break;
 
-      case 'programChange':
-        if (event.program !== undefined) {
-          track.addPitchBend({
-            value: event.program,
-            time,
-          });
-        }
-        break;
+      // Program changes are handled by @tonejs/midi via track.instrument.number
+      // No need to add them as events
     }
   });
 
