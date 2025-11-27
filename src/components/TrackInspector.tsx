@@ -100,11 +100,8 @@ export function TrackInspector({
             <TableRow>
               <TableHead className="w-[60px]">Include</TableHead>
               <TableHead>Track Name</TableHead>
-              <TableHead>Channels</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead>Events</TableHead>
-              <TableHead className="text-center w-[80px]">Mute</TableHead>
-              <TableHead className="text-center w-[80px]">Solo</TableHead>
+              <TableHead>Events (Notes)</TableHead>
+              <TableHead className="text-center w-[120px]">M / S</TableHead>
               <TableHead>Assign to</TableHead>
             </TableRow>
           </TableHeader>
@@ -125,53 +122,40 @@ export function TrackInspector({
                     {track.name}
                   </TableCell>
 
-                  <TableCell>
-                    <div className="flex gap-1 flex-wrap">
-                      {Array.from(track.channels).map(ch => (
-                        <Badge key={ch} variant="outline" className="text-xs">
-                          {ch + 1}
-                        </Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-
-                  <TableCell className="text-muted-foreground">
-                    {track.noteRange 
-                      ? `${track.noteRange.min}-${track.noteRange.max}`
-                      : '-'
-                    }
-                  </TableCell>
-
                   <TableCell className="text-muted-foreground">
                     {track.eventCount.toLocaleString()}
+                    {track.noteRange && (
+                      <span className="text-xs ml-1">
+                        ({Math.round((track.noteRange.min + track.noteRange.max) / 2)})
+                      </span>
+                    )}
                   </TableCell>
 
                   <TableCell className="text-center">
-                    <Button
-                      variant={trackState.muted ? 'default' : 'outline'}
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => onToggleMute?.(track.index)}
-                      disabled={!onToggleMute}
-                    >
-                      {trackState.muted ? (
-                        <VolumeX className="h-4 w-4" />
-                      ) : (
-                        <Volume2 className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </TableCell>
-
-                  <TableCell className="text-center">
-                    <Button
-                      variant={trackState.solo ? 'default' : 'outline'}
-                      size="sm"
-                      className="h-8 w-16 font-semibold"
-                      onClick={() => onToggleSolo?.(track.index)}
-                      disabled={!onToggleSolo}
-                    >
-                      S
-                    </Button>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant={trackState.muted ? 'default' : 'outline'}
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => onToggleMute?.(track.index)}
+                        disabled={!onToggleMute}
+                      >
+                        {trackState.muted ? (
+                          <VolumeX className="h-4 w-4" />
+                        ) : (
+                          <Volume2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant={trackState.solo ? 'default' : 'outline'}
+                        size="icon"
+                        className="h-8 w-8 font-semibold"
+                        onClick={() => onToggleSolo?.(track.index)}
+                        disabled={!onToggleSolo}
+                      >
+                        S
+                      </Button>
+                    </div>
                   </TableCell>
 
                   <TableCell>
