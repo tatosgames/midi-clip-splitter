@@ -42,7 +42,7 @@ export function ExportPanel({
         splitEvents.forEach((events, index) => {
           const splitIndex = splitEvents.length > 1 ? index + 1 : undefined;
           const filename = splitIndex ? `${trackId}_${splitIndex}.mid` : `${trackId}.mid`;
-          const midiData = writeMIDIFile(events, settings.ppq, `MC-101 Track ${trackId}`, parsedMidi.tempo || 120);
+          const midiData = writeMIDIFile(events, settings.ppq, `Track ${trackId}`, parsedMidi.tempo || 120);
           const startStep = index * settings.maxStepsPerClip;
           const endStep = Math.min(startStep + settings.maxStepsPerClip, ticksToSteps(parsedMidi.duration, settings.ppq, settings.stepsPerBar));
           exportFiles.push({
@@ -86,14 +86,14 @@ export function ExportPanel({
       const url = URL.createObjectURL(zipBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `MC101_${parsedMidi.fileName.replace('.mid', '')}_export.zip`;
+      a.download = `${parsedMidi.fileName.replace('.mid', '')}_split_export.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setIsComplete(true);
       toast.success('Export complete!', {
-        description: `Generated ${exportFiles.length} MIDI files ready for MC-101`
+        description: `Generated ${exportFiles.length} MIDI files`
       });
     } catch (error) {
       console.error('Export error:', error);

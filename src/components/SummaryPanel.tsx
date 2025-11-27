@@ -18,7 +18,7 @@ export function SummaryPanel({
   const clipsNeeded = Math.ceil(totalSteps / settings.maxStepsPerClip);
   const warnings: string[] = [];
   if (configs.size > 4) {
-    warnings.push('More than 4 output tracks configured. MC-101 supports only A, B, C, D.');
+    warnings.push('More than 4 output tracks configured.');
   }
   const hasMultipleTracks = configs.size > 0;
   return <Card className="p-6">
