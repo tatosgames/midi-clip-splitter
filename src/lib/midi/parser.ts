@@ -83,6 +83,32 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
       });
     });
 
+    // Process pitch bend events
+    if (track.pitchBends && track.pitchBends.length > 0) {
+      track.pitchBends.forEach(pb => {
+        const channel = track.channel !== undefined ? track.channel : 0;
+        events.push({
+          type: 'pitchBend',
+          deltaTime: 0,
+          absoluteTime: Math.round(pb.ticks),
+          channel,
+          value: Math.round((pb.value + 1) * 8192), // Convert -1 to 1 range to 0-16384
+        });
+      });
+    }
+
+    // Add program change event if instrument is defined
+    if (program !== undefined) {
+      const channel = track.channel !== undefined ? track.channel : 0;
+      events.push({
+        type: 'programChange',
+        deltaTime: 0,
+        absoluteTime: 0, // Program change at start of track
+        channel,
+        program,
+      });
+    }
+
     // Sort by absolute time
     events.sort((a, b) => a.absoluteTime - b.absoluteTime);
 

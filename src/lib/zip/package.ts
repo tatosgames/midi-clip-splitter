@@ -55,7 +55,7 @@ NOTES
 =====
 - Maximum 128 steps per clip (automatically split if longer)
 - Tempo and time signature preserved from source
-- Program changes ${metadata.files[0]?.filename.includes('stripped') ? 'removed' : 'included'}
+- Program changes ${metadata.stripProgramChange ? 'removed' : 'included'}
 - Unsupported MIDI events filtered out
 
 For more information about using MIDI with MC-101, refer to the official

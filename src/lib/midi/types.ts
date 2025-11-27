@@ -66,6 +66,7 @@ export interface ExportMetadata {
   sourceFile: string;
   ppq: number;
   splitSettings: SplitSettings;
+  stripProgramChange: boolean;
   files: {
     filename: string;
     trackId: string;
