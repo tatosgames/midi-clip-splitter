@@ -57,11 +57,21 @@ export function ExportPanel({
           });
         });
       }
+      // Validate that we have files to export
+      if (exportFiles.length === 0) {
+        toast.warning('No MIDI data to export', {
+          description: 'The selected tracks contain no events. Check your track assignments.'
+        });
+        setIsExporting(false);
+        return;
+      }
+
       const metadata: ExportMetadata = {
         generatedAt: new Date().toISOString(),
         sourceFile: parsedMidi.fileName,
         ppq: settings.ppq,
         splitSettings: settings,
+        stripProgramChange: Array.from(configs.values()).some(c => c.stripProgramChange),
         files: exportFiles.map(f => ({
           filename: f.filename,
           trackId: f.trackId,

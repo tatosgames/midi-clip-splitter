@@ -13,14 +13,38 @@ export function writeMIDIFile(
   const track = midi.addTrack();
   track.name = trackName;
 
-  // Build a Map for O(1) noteOff lookups instead of O(n) find operations
-  const noteOffMap = new Map<string, number>();
+  // Build proper Map: key = "channel-note" → sorted array of noteOff times for efficient lookup
+  const noteOffsByKey = new Map<string, number[]>();
   events.forEach(event => {
     if (event.type === 'noteOff' && event.note !== undefined && event.channel !== undefined) {
-      const key = `${event.channel}-${event.note}-${event.absoluteTime}`;
-      noteOffMap.set(key, event.absoluteTime);
+      const key = `${event.channel}-${event.note}`;
+      if (!noteOffsByKey.has(key)) {
+        noteOffsByKey.set(key, []);
+      }
+      noteOffsByKey.get(key)!.push(event.absoluteTime);
     }
   });
+  
+  // Sort each array for binary search
+  noteOffsByKey.forEach(times => times.sort((a, b) => a - b));
+
+  // Binary search helper to find first noteOff time > noteOn time
+  const findNextNoteOff = (times: number[], noteOnTime: number): number | undefined => {
+    let left = 0;
+    let right = times.length - 1;
+    let result: number | undefined;
+    
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (times[mid] > noteOnTime) {
+        result = times[mid];
+        right = mid - 1;
+      } else {
+        left = mid + 1;
+      }
+    }
+    return result;
+  };
 
   // Convert events back to Tone.js format
   const processedNotes = new Set<string>();
@@ -31,44 +55,24 @@ export function writeMIDIFile(
     switch (event.type) {
       case 'noteOn':
         if (event.note !== undefined && event.velocity !== undefined && event.channel !== undefined) {
-          // Find corresponding noteOff using channel-note key
-          let noteOffTime: number | undefined;
-          let searchTime = event.absoluteTime + 1;
-          
-          // Search for the next noteOff for this channel-note combination
-          while (!noteOffTime && searchTime <= event.absoluteTime + 100000) {
-            const key = `${event.channel}-${event.note}-${searchTime}`;
-            if (noteOffMap.has(key)) {
-              noteOffTime = noteOffMap.get(key);
-              break;
-            }
-            searchTime++;
-          }
-          
-          // If still not found, do a fallback search in the events array
-          if (!noteOffTime) {
-            const noteOffEvent = events.find(
-              e => e.type === 'noteOff' && 
-                   e.note === event.note && 
-                   e.absoluteTime > event.absoluteTime &&
-                   e.channel === event.channel
-            );
-            noteOffTime = noteOffEvent?.absoluteTime;
-          }
+          // Find corresponding noteOff using optimized Map + binary search
+          const noteKey = `${event.channel}-${event.note}`;
+          const noteOffTimes = noteOffsByKey.get(noteKey);
+          const noteOffTime = noteOffTimes ? findNextNoteOff(noteOffTimes, event.absoluteTime) : undefined;
           
           const duration = noteOffTime 
             ? (noteOffTime - event.absoluteTime) / ppq 
             : 0.25; // Default quarter note
 
-          const noteKey = `${event.channel}-${event.note}-${event.absoluteTime}`;
-          if (!processedNotes.has(noteKey)) {
+          const uniqueKey = `${event.channel}-${event.note}-${event.absoluteTime}`;
+          if (!processedNotes.has(uniqueKey)) {
             track.addNote({
               midi: event.note,
               time,
               duration,
               velocity: event.velocity / 127,
             });
-            processedNotes.add(noteKey);
+            processedNotes.add(uniqueKey);
           }
         }
         break;
@@ -83,8 +87,20 @@ export function writeMIDIFile(
         }
         break;
 
-      // Program changes are handled by @tonejs/midi via track.instrument.number
-      // No need to add them as events
+      case 'programChange':
+        if (event.program !== undefined) {
+          track.instrument.number = event.program;
+        }
+        break;
+
+      case 'pitchBend':
+        if (event.value !== undefined) {
+          track.addPitchBend({
+            value: (event.value / 8192) - 1, // Convert 0-16384 to -1 to 1
+            time,
+          });
+        }
+        break;
     }
   });
 
