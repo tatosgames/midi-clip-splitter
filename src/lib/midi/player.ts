@@ -4,9 +4,18 @@ import type { ParsedMIDI, MIDITrack } from './types';
 import { getInstrumentName } from './gm-instruments';
 import { DEFAULT_BPM } from './constants';
 
+// Structure for scheduled events
+interface ScheduledEvent {
+  time: number; // in seconds
+  note: number;
+  velocity: number;
+  duration: number;
+}
+
 export interface TrackSynth {
   instrument: any; // Soundfont player instance
-  part: Tone.Part | null;
+  events: ScheduledEvent[]; // Pre-calculated events
+  nextEventIndex: number; // Current position in events array
   muted: boolean;
   solo: boolean;
   isLoaded: boolean;
@@ -20,10 +29,15 @@ export class MidiPlayer {
   private audioContext: AudioContext | null = null;
   private loadingProgress = 0;
   private totalTracksToLoad = 0;
+  
+  // Scheduler properties
+  private scheduleAheadTime = 0.1; // seconds to schedule ahead
+  private schedulerInterval: number | null = null;
+  private startTime = 0; // when playback started
+  private pauseOffset = 0; // position when paused
 
   constructor() {
-    // Initialize Tone.js with better defaults
-    Tone.context.lookAhead = 0.1;
+    // Context will be initialized in initialize()
   }
 
   async initialize(midi: ParsedMIDI) {
@@ -32,12 +46,8 @@ export class MidiPlayer {
     this.parsedMidi = midi;
     this.audioContext = Tone.context.rawContext as AudioContext;
 
-    // Read BPM from MIDI file, fallback to default
-    const midiData = midi as any;
-    const bpm = (midiData.header?.tempos?.[0]?.bpm) || DEFAULT_BPM;
-    
-    // Set Tone.js transport BPM
-    Tone.Transport.bpm.value = bpm;
+    // Read BPM from MIDI file
+    const bpm = midi.tempo || DEFAULT_BPM;
 
     // Calculate duration in seconds
     const beatsPerTick = 1 / midi.header.ppq;
@@ -47,6 +57,7 @@ export class MidiPlayer {
     // Initialize loading tracking
     this.loadingProgress = 0;
     this.totalTracksToLoad = midi.tracks.length;
+    this.pauseOffset = 0;
 
     // Load instruments for each track
     await Promise.all(
@@ -55,9 +66,6 @@ export class MidiPlayer {
         this.loadingProgress++;
       })
     );
-
-    Tone.Transport.position = 0;
-    Tone.Transport.loop = false;
   }
 
   private async loadTrackInstrument(
@@ -72,18 +80,14 @@ export class MidiPlayer {
     let instrumentName: string;
     
     if (track.isDrums) {
-      // Use a drum kit for channel 10
       instrumentName = 'synth_drum';
     } else if (track.program !== undefined) {
-      // Use the program number from the MIDI file
       instrumentName = getInstrumentName(track.program);
     } else {
-      // Default to piano
       instrumentName = 'acoustic_grand_piano';
     }
 
     try {
-      // Load instrument from CDN
       const instrument = await Soundfont.instrument(
         this.audioContext,
         instrumentName as any,
@@ -91,27 +95,11 @@ export class MidiPlayer {
       );
 
       const events = this.convertTrackToEvents(track, ppq, bpm);
-      
-      const part = new Tone.Part((time, event) => {
-        if (event.type === 'noteOn' && instrument) {
-          // Schedule note with Tone.js timing but play with soundfont
-          const now = Tone.now();
-          const when = Math.max(0, time - now); // Prevent negative timing
-          
-          instrument.play(
-            event.note,
-            this.audioContext!.currentTime + when,
-            {
-              duration: event.duration,
-              gain: event.velocity / 127,
-            }
-          );
-        }
-      }, events);
 
       this.tracks.set(index, {
         instrument,
-        part,
+        events,
+        nextEventIndex: 0,
         muted: false,
         solo: false,
         isLoaded: true,
@@ -119,42 +107,20 @@ export class MidiPlayer {
     } catch (error) {
       console.error(`Failed to load instrument for track ${index}:`, error);
       
-      // Fallback to a simple synth if soundfont loading fails
-      const fallbackSynth = new Tone.PolySynth(Tone.Synth, {
-        envelope: {
-          attack: 0.005,
-          decay: 0.1,
-          sustain: 0.3,
-          release: 0.5,
-        },
-        volume: -6,
-      }).toDestination();
-
-      const events = this.convertTrackToEvents(track, ppq, bpm);
-      
-      const part = new Tone.Part((time, event) => {
-        if (event.type === 'noteOn') {
-          fallbackSynth.triggerAttackRelease(
-            Tone.Frequency(event.note, 'midi').toNote(),
-            event.duration,
-            time,
-            event.velocity / 127
-          );
-        }
-      }, events);
-
+      // Fallback: create empty track
       this.tracks.set(index, {
-        instrument: fallbackSynth,
-        part,
+        instrument: null,
+        events: [],
+        nextEventIndex: 0,
         muted: false,
         solo: false,
-        isLoaded: true,
+        isLoaded: false,
       });
     }
   }
 
-  private convertTrackToEvents(track: MIDITrack, ppq: number, bpm: number) {
-    const events: any[] = [];
+  private convertTrackToEvents(track: MIDITrack, ppq: number, bpm: number): ScheduledEvent[] {
+    const events: ScheduledEvent[] = [];
     const noteOnMap = new Map<number, { time: number; velocity: number }>();
     const beatsPerTick = 1 / ppq;
     const secondsPerBeat = 60 / bpm;
@@ -170,7 +136,6 @@ export class MidiPlayer {
           const noteOn = noteOnMap.get(event.note);
           if (noteOn) {
             events.push({
-              type: 'noteOn',
               time: noteOn.time,
               note: event.note,
               velocity: noteOn.velocity,
@@ -183,7 +148,6 @@ export class MidiPlayer {
         const noteOn = noteOnMap.get(event.note);
         if (noteOn) {
           events.push({
-            type: 'noteOn',
             time: noteOn.time,
             note: event.note,
             velocity: noteOn.velocity,
@@ -194,52 +158,122 @@ export class MidiPlayer {
       }
     });
 
+    // Sort by time
+    events.sort((a, b) => a.time - b.time);
     return events;
   }
 
-  play() {
-    if (!this.parsedMidi) return;
-    
+  private scheduler() {
+    if (!this.isPlaying || !this.audioContext) return;
+
+    const currentTime = this.audioContext.currentTime;
+    const currentPosition = currentTime - this.startTime;
+    const scheduleUntil = currentPosition + this.scheduleAheadTime;
+
     // Handle solo logic
-    const soloTracks = Array.from(this.tracks.entries()).filter(([_, t]) => t.solo);
-    const hasSolo = soloTracks.length > 0;
+    const hasSolo = Array.from(this.tracks.values()).some(t => t.solo);
 
     this.tracks.forEach((trackSynth) => {
       const shouldPlay = hasSolo ? trackSynth.solo : !trackSynth.muted;
-      
-      if (shouldPlay && trackSynth.isLoaded) {
-        trackSynth.part?.start(0);
-      } else {
-        trackSynth.part?.stop();
+      if (!shouldPlay || !trackSynth.isLoaded || !trackSynth.instrument) return;
+
+      // Schedule events for this track
+      while (
+        trackSynth.nextEventIndex < trackSynth.events.length &&
+        trackSynth.events[trackSynth.nextEventIndex].time < scheduleUntil
+      ) {
+        const event = trackSynth.events[trackSynth.nextEventIndex];
+        const when = this.startTime + event.time;
+
+        // Schedule the note with Web Audio API timing
+        trackSynth.instrument.play(
+          event.note,
+          when,
+          {
+            duration: event.duration,
+            gain: event.velocity / 127,
+          }
+        );
+
+        trackSynth.nextEventIndex++;
       }
     });
 
-    Tone.Transport.start();
+    // Check if we've reached the end
+    if (currentPosition >= this.duration) {
+      this.stop();
+      return;
+    }
+
+    // Continue scheduling
+    this.schedulerInterval = window.setTimeout(() => this.scheduler(), 25);
+  }
+
+  play() {
+    if (!this.parsedMidi || !this.audioContext) return;
+
+    this.startTime = this.audioContext.currentTime - this.pauseOffset;
     this.isPlaying = true;
+    this.scheduler();
   }
 
   pause() {
-    Tone.Transport.pause();
+    if (!this.audioContext) return;
+    
+    this.pauseOffset = this.audioContext.currentTime - this.startTime;
     this.isPlaying = false;
+    
+    if (this.schedulerInterval !== null) {
+      clearTimeout(this.schedulerInterval);
+      this.schedulerInterval = null;
+    }
   }
 
   stop() {
-    Tone.Transport.stop();
-    this.tracks.forEach(t => t.part?.stop());
+    this.pauseOffset = 0;
     this.isPlaying = false;
+
+    if (this.schedulerInterval !== null) {
+      clearTimeout(this.schedulerInterval);
+      this.schedulerInterval = null;
+    }
+
+    // Reset event indices
+    this.tracks.forEach(track => {
+      track.nextEventIndex = 0;
+    });
   }
 
   seek(seconds: number) {
-    Tone.Transport.seconds = Math.max(0, Math.min(seconds, this.duration));
+    const wasPlaying = this.isPlaying;
+    
+    if (wasPlaying) {
+      this.pause();
+    }
+
+    this.pauseOffset = Math.max(0, Math.min(seconds, this.duration));
+
+    // Reset event indices to match the new position
+    this.tracks.forEach(track => {
+      track.nextEventIndex = 0;
+      // Find the first event after the seek position
+      while (
+        track.nextEventIndex < track.events.length &&
+        track.events[track.nextEventIndex].time < this.pauseOffset
+      ) {
+        track.nextEventIndex++;
+      }
+    });
+
+    if (wasPlaying) {
+      this.play();
+    }
   }
 
   setTrackMute(trackIndex: number, muted: boolean) {
     const track = this.tracks.get(trackIndex);
     if (track) {
       track.muted = muted;
-      if (this.isPlaying) {
-        this.updateTrackPlayback(trackIndex);
-      }
     }
   }
 
@@ -247,34 +281,16 @@ export class MidiPlayer {
     const track = this.tracks.get(trackIndex);
     if (track) {
       track.solo = solo;
-      if (this.isPlaying) {
-        this.updateAllTracksPlayback();
-      }
     }
-  }
-
-  private updateTrackPlayback(trackIndex: number) {
-    const trackSynth = this.tracks.get(trackIndex);
-    if (!trackSynth || !trackSynth.isLoaded) return;
-
-    const hasSolo = Array.from(this.tracks.values()).some(t => t.solo);
-    const shouldPlay = hasSolo ? trackSynth.solo : !trackSynth.muted;
-
-    if (shouldPlay) {
-      if (!trackSynth.part?.state || trackSynth.part.state !== 'started') {
-        trackSynth.part?.start(0);
-      }
-    } else {
-      trackSynth.part?.stop();
-    }
-  }
-
-  private updateAllTracksPlayback() {
-    this.tracks.forEach((_, index) => this.updateTrackPlayback(index));
   }
 
   getPosition(): number {
-    return Tone.Transport.seconds;
+    if (!this.audioContext) return 0;
+    
+    if (this.isPlaying) {
+      return this.audioContext.currentTime - this.startTime;
+    }
+    return this.pauseOffset;
   }
 
   getDuration(): number {
@@ -282,7 +298,7 @@ export class MidiPlayer {
   }
 
   getIsPlaying(): boolean {
-    return this.isPlaying && Tone.Transport.state === 'started';
+    return this.isPlaying;
   }
 
   getLoadingProgress(): number {
@@ -297,20 +313,22 @@ export class MidiPlayer {
 
   dispose() {
     this.stop();
-    Tone.Transport.stop();
-    Tone.Transport.cancel();
-    this.tracks.forEach(({ instrument, part }) => {
-      part?.dispose();
+    
+    if (this.schedulerInterval !== null) {
+      clearTimeout(this.schedulerInterval);
+      this.schedulerInterval = null;
+    }
+
+    this.tracks.forEach(({ instrument }) => {
       if (instrument && typeof instrument.stop === 'function') {
         instrument.stop();
       }
-      if (instrument && typeof instrument.dispose === 'function') {
-        instrument.dispose();
-      }
     });
+    
     this.tracks.clear();
     this.audioContext = null;
     this.loadingProgress = 0;
     this.totalTracksToLoad = 0;
+    this.pauseOffset = 0;
   }
 }
