@@ -94,7 +94,7 @@ const Index = () => {
 
         {/* Footer */}
         <footer className="mt-16 text-center text-sm text-muted-foreground">
-          <p>Optimized for Hardware synth</p>
+          <p>Compatible with any hardware synth or DAW</p>
         </footer>
       </div>
     </div>;
