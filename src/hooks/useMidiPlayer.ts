@@ -22,44 +22,54 @@ export function useMidiPlayer(parsedMidi: ParsedMIDI | null) {
     }
 
     const initPlayer = async () => {
-      if (!playerRef.current) {
-        playerRef.current = new MidiPlayer();
-      }
-      
-      setIsLoading(true);
-      setLoadingProgress(0);
-      
-      // Poll loading progress
-      loadingIntervalRef.current = window.setInterval(() => {
-        if (playerRef.current) {
-          const progress = playerRef.current.getLoadingProgress();
-          setLoadingProgress(progress);
-          
-          if (playerRef.current.isLoadingComplete()) {
-            if (loadingIntervalRef.current) {
-              clearInterval(loadingIntervalRef.current);
+      try {
+        if (!playerRef.current) {
+          playerRef.current = new MidiPlayer();
+        }
+        
+        setIsLoading(true);
+        setLoadingProgress(0);
+        
+        // Poll loading progress
+        loadingIntervalRef.current = window.setInterval(() => {
+          if (playerRef.current) {
+            const progress = playerRef.current.getLoadingProgress();
+            setLoadingProgress(progress);
+            
+            if (playerRef.current.isLoadingComplete()) {
+              if (loadingIntervalRef.current) {
+                clearInterval(loadingIntervalRef.current);
+              }
             }
           }
+        }, 100);
+        
+        await playerRef.current.initialize(parsedMidi);
+        
+        if (loadingIntervalRef.current) {
+          clearInterval(loadingIntervalRef.current);
         }
-      }, 100);
-      
-      await playerRef.current.initialize(parsedMidi);
-      
-      if (loadingIntervalRef.current) {
-        clearInterval(loadingIntervalRef.current);
+        
+        setDuration(playerRef.current.getDuration());
+        setIsInitialized(true);
+        setIsLoading(false);
+        setLoadingProgress(100);
+        
+        // Initialize track states
+        const states = new Map();
+        parsedMidi.tracks.forEach((_, index) => {
+          states.set(index, { muted: false, solo: false });
+        });
+        setTrackStates(states);
+      } catch (error) {
+        console.error('Failed to initialize MIDI player:', error);
+        setIsLoading(false);
+        setIsInitialized(false);
+        // Clean up interval on error
+        if (loadingIntervalRef.current) {
+          clearInterval(loadingIntervalRef.current);
+        }
       }
-      
-      setDuration(playerRef.current.getDuration());
-      setIsInitialized(true);
-      setIsLoading(false);
-      setLoadingProgress(100);
-      
-      // Initialize track states
-      const states = new Map();
-      parsedMidi.tracks.forEach((_, index) => {
-        states.set(index, { muted: false, solo: false });
-      });
-      setTrackStates(states);
     };
 
     initPlayer();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Music, Volume2, VolumeX } from 'lucide-react';
 import { Card } from './ui/card';
 import { Checkbox } from './ui/checkbox';
@@ -28,6 +28,11 @@ export function TrackInspector({
   const [selectedTracks, setSelectedTracks] = useState<Set<number>>(
     new Set(tracks.map((_, i) => i))
   );
+
+  // Reset selected tracks when tracks change (new file loaded)
+  useEffect(() => {
+    setSelectedTracks(new Set(tracks.map((_, i) => i)));
+  }, [tracks]);
 
   const handleTrackToggle = (trackIndex: number) => {
     const newSelected = new Set(selectedTracks);
