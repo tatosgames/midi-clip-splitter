@@ -20,9 +20,6 @@ export function SummaryPanel({
   if (configs.size > 4) {
     warnings.push('More than 4 output tracks configured. MC-101 supports only A, B, C, D.');
   }
-  if (clipsNeeded > 1) {
-    warnings.push(`Long pattern will be split into ${clipsNeeded} clips per track.`);
-  }
   const hasMultipleTracks = configs.size > 0;
   return <Card className="p-6">
       <div className="space-y-6">
