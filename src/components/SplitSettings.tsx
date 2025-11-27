@@ -20,6 +20,26 @@ export function SplitSettings({
       });
     }
   };
+
+  const handleMaxStepsChange = (value: string) => {
+    const num = parseInt(value);
+    if (!isNaN(num) && num > 0) {
+      onSettingsChange({
+        ...settings,
+        maxStepsPerClip: num
+      });
+    }
+  };
+
+  const handlePPQChange = (value: string) => {
+    const num = parseInt(value);
+    if (!isNaN(num) && num > 0) {
+      onSettingsChange({
+        ...settings,
+        ppq: num
+      });
+    }
+  };
   return <Card className="p-6">
       <div className="space-y-6">
         <div className="flex items-center gap-2">
@@ -36,13 +56,13 @@ export function SplitSettings({
 
           <div className="space-y-2">
             <Label htmlFor="maxSteps">Max Steps per Clip</Label>
-            <Input id="maxSteps" type="number" value={settings.maxStepsPerClip} disabled className="font-mono bg-muted" />
+            <Input id="maxSteps" type="number" min="1" value={settings.maxStepsPerClip} onChange={e => handleMaxStepsChange(e.target.value)} className="font-mono" />
             
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="ppq">PPQ (Ticks/Beat)</Label>
-            <Input id="ppq" type="number" value={settings.ppq} disabled className="font-mono bg-muted" />
+            <Input id="ppq" type="number" min="1" value={settings.ppq} onChange={e => handlePPQChange(e.target.value)} className="font-mono" />
             
           </div>
         </div>
