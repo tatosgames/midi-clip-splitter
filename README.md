@@ -1,73 +1,150 @@
-# Welcome to your Lovable project
+# MIDI Splitter
 
-## Project info
+A professional web-based MIDI file processor that helps musicians prepare multitrack MIDI files for hardware synths and DAWs. Upload, map, split, and export your MIDI patterns with ease.
 
-**URL**: https://lovable.dev/projects/a05fc936-9598-4071-8ca1-b3a1d5a06b05
+## Features
 
-## How can I edit this code?
+### 🎹 MIDI File Processing
+- **Drag & Drop Upload**: Simple file upload with instant parsing
+- **Track Inspection**: View detailed track information including channels, note ranges, instruments, and event counts
+- **Smart Track Mapping**: Assign source tracks to output destinations (A, B, C, D) with flexible merging
+- **Channel Filtering**: Optionally filter specific MIDI channels per track
 
-There are several ways of editing your application.
+### 🎵 Playback Preview
+- **Real-time MIDI Playback**: Preview your MIDI file before export
+- **Instrument Rendering**: Realistic soundfont-based instrument playback
+- **Per-track Playback**: Listen to individual tracks or all tracks together
+- **Drum Channel Support**: Proper drum kit rendering for channel 10
 
-**Use Lovable**
+### ⚙️ Flexible Configuration
+- **Configurable Step Limits**: Set maximum steps per clip (default 128, adjustable for any hardware)
+- **PPQ Control**: Adjust pulses per quarter note (default: source file PPQ)
+- **Steps Per Bar**: Configure pattern length (default 16 steps)
+- **Program Change Stripping**: Optionally remove program change events
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/a05fc936-9598-4071-8ca1-b3a1d5a06b05) and start prompting.
+### 📦 Professional Export
+- **ZIP Bundle**: All files packaged in a single download
+- **SMF Type 1 Format**: Industry-standard single-track MIDI files
+- **Automatic Splitting**: Files exceeding step limits are split into sequential clips
+- **Note Boundary Handling**: Intelligent note-off insertion at clip boundaries
+- **Metadata JSON**: Complete export configuration documentation
+- **Import Instructions**: Generic README with hardware/DAW import guides
 
-Changes made via Lovable will be committed automatically to this repo.
+## Technology Stack
 
-**Use your preferred IDE**
+- **Frontend**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **UI Framework**: Tailwind CSS + shadcn/ui components
+- **MIDI Parsing**: @tonejs/midi
+- **Audio Playback**: Tone.js + soundfont-player (Web Audio API)
+- **File Bundling**: JSZip
+- **Routing**: React Router
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Getting Started
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Prerequisites
+- Node.js 18+ and npm
 
-Follow these steps:
+### Installation
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+```bash
+# Clone the repository
+git clone <repository-url>
+cd midi-splitter
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Install dependencies
+npm install
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Building for Production
 
-**Use GitHub Codespaces**
+```bash
+npm run build
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Build output will be in the `dist/` directory.
 
-## What technologies are used for this project?
+## How to Use
 
-This project is built with:
+1. **Upload MIDI File**: Drag and drop a Standard MIDI File (.mid) or click to browse
+2. **Inspect Tracks**: Review track information including instruments, channels, and note ranges
+3. **Configure Mapping**: Assign source tracks to output destinations (A, B, C, D)
+4. **Adjust Settings**: Configure step limits, PPQ, and other parameters
+5. **Preview Playback**: Listen to your MIDI file to verify mappings
+6. **Export**: Generate a ZIP bundle with split MIDI files ready for import
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Architecture
 
-## How can I deploy this project?
+### Core Modules
 
-Simply open [Lovable](https://lovable.dev/projects/a05fc936-9598-4071-8ca1-b3a1d5a06b05) and click on Share -> Publish.
+- **`src/lib/midi/parser.ts`**: SMF parsing into intermediate representation
+- **`src/lib/midi/transform.ts`**: Track merging, filtering, and splitting logic
+- **`src/lib/midi/writer.ts`**: Serialization back to SMF Type 1 format
+- **`src/lib/midi/player.ts`**: Web Audio API-based MIDI playback with soundfonts
+- **`src/lib/zip/package.ts`**: ZIP bundle creation with metadata
 
-## Can I connect a custom domain to my Lovable project?
+### Key Components
 
-Yes, you can!
+- **`UploadPanel`**: File selection and upload UI
+- **`TrackInspector`**: Track metadata display and mapping interface
+- **`MidiPlayer`**: Playback controls and preview
+- **`SplitSettings`**: Configuration panel for step limits and PPQ
+- **`SummaryPanel`**: Export summary with clip counts
+- **`ExportPanel`**: ZIP generation and download
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Performance
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- Client-side processing: All MIDI parsing and transformation happens in the browser
+- No server dependency: Completely stateless, no data persistence
+- Optimized for large files: Handles 5+ minute dense MIDI at PPQ 960
+- Web Audio precision: Sub-millisecond accurate playback scheduling
+
+## Configuration
+
+### Default Settings
+- **Steps Per Bar**: 16 steps (4/4 time signature)
+- **Max Steps Per Clip**: 128 steps (configurable)
+- **PPQ**: Inherited from source file (configurable)
+
+### Supported MIDI Events
+- Note On/Off
+- Control Change (CC)
+- Program Change
+- Pitch Bend
+- Key Aftertouch
+- Channel Aftertouch
+
+### Event Filtering
+- System messages (SysEx, Song Position, etc.) are automatically removed
+- Program Change messages can be optionally stripped
+- All musical events are preserved
+
+## Browser Compatibility
+
+- Chrome 90+
+- Firefox 88+
+- Safari 14+
+- Edge 90+
+
+Requires Web Audio API support.
+
+## License
+
+This project is open source and available under the MIT License.
+
+## Credits
+
+Made with 🤖❤️🎛️ by [LucaTronico](https://lucatronico.w.link/)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## Support
+
+For issues, questions, or feature requests, please open an issue on GitHub.
