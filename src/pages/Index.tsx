@@ -70,7 +70,7 @@ const Index = () => {
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">MIDI Splitter</h1>
           </div>
-          <p className="text-muted-foreground max-w-2xl mx-auto">Prepare your MIDI patterns as ready clips in a single zip. Upload, map tracks, and export with automatic 128-step splitting.</p>
+          
         </header>
 
         {/* Main Content */}
