@@ -13,37 +13,33 @@ export function writeMIDIFile(
   const track = midi.addTrack();
   track.name = trackName;
 
-  // Build proper Map: key = "channel-note" → sorted array of noteOff times for efficient lookup
-  const noteOffsByKey = new Map<string, number[]>();
+  // Build proper Map: key = "channel-note" → sorted array of noteOff times with consumption tracking
+  const noteOffsByKey = new Map<string, { times: number[]; nextIndex: number }>();
   events.forEach(event => {
     if (event.type === 'noteOff' && event.note !== undefined && event.channel !== undefined) {
       const key = `${event.channel}-${event.note}`;
       if (!noteOffsByKey.has(key)) {
-        noteOffsByKey.set(key, []);
+        noteOffsByKey.set(key, { times: [], nextIndex: 0 });
       }
-      noteOffsByKey.get(key)!.push(event.absoluteTime);
+      noteOffsByKey.get(key)!.times.push(event.absoluteTime);
     }
   });
   
   // Sort each array for binary search
-  noteOffsByKey.forEach(times => times.sort((a, b) => a - b));
+  noteOffsByKey.forEach(data => data.times.sort((a, b) => a - b));
 
-  // Binary search helper to find first noteOff time > noteOn time
-  const findNextNoteOff = (times: number[], noteOnTime: number): number | undefined => {
-    let left = 0;
-    let right = times.length - 1;
-    let result: number | undefined;
-    
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (times[mid] > noteOnTime) {
-        result = times[mid];
-        right = mid - 1;
-      } else {
-        left = mid + 1;
+  // Helper to find and consume next noteOff time > noteOn time
+  const findAndConsumeNextNoteOff = (data: { times: number[]; nextIndex: number }, noteOnTime: number): number | undefined => {
+    // Start from nextIndex (last consumed position)
+    while (data.nextIndex < data.times.length) {
+      const noteOffTime = data.times[data.nextIndex];
+      if (noteOffTime > noteOnTime) {
+        data.nextIndex++; // Consume this noteOff
+        return noteOffTime;
       }
+      data.nextIndex++; // Skip noteOffs that are before or equal to this noteOn
     }
-    return result;
+    return undefined;
   };
 
   // Convert events back to Tone.js format
@@ -55,10 +51,10 @@ export function writeMIDIFile(
     switch (event.type) {
       case 'noteOn':
         if (event.note !== undefined && event.velocity !== undefined && event.channel !== undefined) {
-          // Find corresponding noteOff using optimized Map + binary search
+          // Find and consume corresponding noteOff using optimized Map with consumption tracking
           const noteKey = `${event.channel}-${event.note}`;
-          const noteOffTimes = noteOffsByKey.get(noteKey);
-          const noteOffTime = noteOffTimes ? findNextNoteOff(noteOffTimes, event.absoluteTime) : undefined;
+          const noteOffData = noteOffsByKey.get(noteKey);
+          const noteOffTime = noteOffData ? findAndConsumeNextNoteOff(noteOffData, event.absoluteTime) : undefined;
           
           const duration = noteOffTime 
             ? (noteOffTime - event.absoluteTime) / ppq 

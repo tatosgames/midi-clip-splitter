@@ -69,7 +69,7 @@ export function SplitSettings({
 
         <div className="p-4 bg-accent/30 rounded-lg border border-border">
           <p className="text-sm text-muted-foreground">
-            Patterns longer than 128 steps will be automatically split into multiple clips.
+            Patterns longer than {settings.maxStepsPerClip} steps will be automatically split into multiple clips.
             Each clip will be exported as a separate .mid file (e.g., A_1.mid, A_2.mid).
           </p>
         </div>

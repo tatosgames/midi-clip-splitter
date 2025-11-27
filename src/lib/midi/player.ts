@@ -91,8 +91,15 @@ export class MidiPlayer {
     }
 
     try {
-      // Check cache first
+      // Check cache first, but validate AudioContext
       let instrument = MidiPlayer.instrumentCache.get(instrumentName);
+      
+      // Validate cached instrument has the correct AudioContext
+      if (instrument && instrument.context !== this.audioContext) {
+        // AudioContext has changed, clear cache entry
+        MidiPlayer.instrumentCache.delete(instrumentName);
+        instrument = null;
+      }
       
       if (!instrument) {
         instrument = await Soundfont.instrument(
@@ -130,7 +137,7 @@ export class MidiPlayer {
 
   private convertTrackToEvents(track: MIDITrack, ppq: number, bpm: number): ScheduledEvent[] {
     const events: ScheduledEvent[] = [];
-    const noteOnMap = new Map<number, { time: number; velocity: number }>();
+    const noteOnMap = new Map<string, { time: number; velocity: number }>();
     const beatsPerTick = 1 / ppq;
     const secondsPerBeat = 60 / bpm;
 
@@ -138,11 +145,14 @@ export class MidiPlayer {
       const timeInSeconds = event.absoluteTime * beatsPerTick * secondsPerBeat;
 
       if (event.type === 'noteOn' && event.note !== undefined && event.velocity !== undefined) {
+        const channel = event.channel ?? 0;
+        const noteKey = `${channel}-${event.note}`;
+        
         if (event.velocity > 0) {
-          noteOnMap.set(event.note, { time: timeInSeconds, velocity: event.velocity });
+          noteOnMap.set(noteKey, { time: timeInSeconds, velocity: event.velocity });
         } else {
           // Velocity 0 = note off
-          const noteOn = noteOnMap.get(event.note);
+          const noteOn = noteOnMap.get(noteKey);
           if (noteOn) {
             events.push({
               time: noteOn.time,
@@ -150,11 +160,13 @@ export class MidiPlayer {
               velocity: noteOn.velocity,
               duration: timeInSeconds - noteOn.time,
             });
-            noteOnMap.delete(event.note);
+            noteOnMap.delete(noteKey);
           }
         }
       } else if (event.type === 'noteOff' && event.note !== undefined) {
-        const noteOn = noteOnMap.get(event.note);
+        const channel = event.channel ?? 0;
+        const noteKey = `${channel}-${event.note}`;
+        const noteOn = noteOnMap.get(noteKey);
         if (noteOn) {
           events.push({
             time: noteOn.time,
@@ -162,7 +174,7 @@ export class MidiPlayer {
             velocity: noteOn.velocity,
             duration: timeInSeconds - noteOn.time,
           });
-          noteOnMap.delete(event.note);
+          noteOnMap.delete(noteKey);
         }
       }
     });
