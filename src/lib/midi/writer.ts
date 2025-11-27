@@ -13,31 +13,63 @@ export function writeMIDIFile(
   const track = midi.addTrack();
   track.name = trackName;
 
+  // Build a Map for O(1) noteOff lookups instead of O(n) find operations
+  const noteOffMap = new Map<string, number>();
+  events.forEach(event => {
+    if (event.type === 'noteOff' && event.note !== undefined && event.channel !== undefined) {
+      const key = `${event.channel}-${event.note}-${event.absoluteTime}`;
+      noteOffMap.set(key, event.absoluteTime);
+    }
+  });
+
   // Convert events back to Tone.js format
+  const processedNotes = new Set<string>();
+  
   events.forEach(event => {
     const time = event.absoluteTime / ppq; // Convert ticks to beats
 
     switch (event.type) {
       case 'noteOn':
-        if (event.note !== undefined && event.velocity !== undefined) {
-          // Find corresponding noteOff
-          const noteOffEvent = events.find(
-            e => e.type === 'noteOff' && 
-                 e.note === event.note && 
-                 e.absoluteTime > event.absoluteTime &&
-                 e.channel === event.channel
-          );
+        if (event.note !== undefined && event.velocity !== undefined && event.channel !== undefined) {
+          // Find corresponding noteOff using channel-note key
+          let noteOffTime: number | undefined;
+          let searchTime = event.absoluteTime + 1;
           
-          const duration = noteOffEvent 
-            ? (noteOffEvent.absoluteTime - event.absoluteTime) / ppq 
+          // Search for the next noteOff for this channel-note combination
+          while (!noteOffTime && searchTime <= event.absoluteTime + 100000) {
+            const key = `${event.channel}-${event.note}-${searchTime}`;
+            if (noteOffMap.has(key)) {
+              noteOffTime = noteOffMap.get(key);
+              break;
+            }
+            searchTime++;
+          }
+          
+          // If still not found, do a fallback search in the events array
+          if (!noteOffTime) {
+            const noteOffEvent = events.find(
+              e => e.type === 'noteOff' && 
+                   e.note === event.note && 
+                   e.absoluteTime > event.absoluteTime &&
+                   e.channel === event.channel
+            );
+            noteOffTime = noteOffEvent?.absoluteTime;
+          }
+          
+          const duration = noteOffTime 
+            ? (noteOffTime - event.absoluteTime) / ppq 
             : 0.25; // Default quarter note
 
-          track.addNote({
-            midi: event.note,
-            time,
-            duration,
-            velocity: event.velocity / 127,
-          });
+          const noteKey = `${event.channel}-${event.note}-${event.absoluteTime}`;
+          if (!processedNotes.has(noteKey)) {
+            track.addNote({
+              midi: event.note,
+              time,
+              duration,
+              velocity: event.velocity / 127,
+            });
+            processedNotes.add(noteKey);
+          }
         }
         break;
 
@@ -59,23 +91,3 @@ export function writeMIDIFile(
   return midi.toArray();
 }
 
-export function variableLengthQuantity(value: number): number[] {
-  const bytes: number[] = [];
-  let buffer = value & 0x7f;
-
-  while (value >>= 7) {
-    buffer <<= 8;
-    buffer |= ((value & 0x7f) | 0x80);
-  }
-
-  while (true) {
-    bytes.push(buffer & 0xff);
-    if (buffer & 0x80) {
-      buffer >>= 8;
-    } else {
-      break;
-    }
-  }
-
-  return bytes;
-}
