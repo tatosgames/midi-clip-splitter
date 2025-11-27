@@ -57,7 +57,8 @@ export function ExportPanel({ parsedMidi, configs, settings }: ExportPanelProps)
           const midiData = writeMIDIFile(
             events,
             settings.ppq,
-            `MC-101 Track ${trackId}`
+            `MC-101 Track ${trackId}`,
+            parsedMidi.tempo || 120
           );
 
           const startStep = index * settings.maxStepsPerClip;

@@ -37,6 +37,7 @@ export interface ParsedMIDI {
   tracks: MIDITrack[];
   fileName: string;
   duration: number; // in ticks
+  tempo?: number; // BPM from first tempo event
 }
 
 export interface OutputTrackConfig {

@@ -109,11 +109,17 @@ export async function parseMIDIFile(file: File): Promise<ParsedMIDI> {
     t.events.length > 0 ? t.events[t.events.length - 1].absoluteTime : 0
   ));
 
+  // Read tempo from MIDI file (use first tempo event)
+  const tempo = midi.header.tempos && midi.header.tempos.length > 0 
+    ? midi.header.tempos[0].bpm 
+    : undefined;
+
   return {
     header,
     tracks,
     fileName: file.name,
     duration,
+    tempo,
   };
 }
 
