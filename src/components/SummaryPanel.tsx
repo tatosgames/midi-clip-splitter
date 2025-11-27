@@ -69,7 +69,12 @@ export function SummaryPanel({
             </div>
 
             {warnings.length > 0 && <div className="space-y-2">
-                {warnings.map((warning, i) => {})}
+                {warnings.map((warning, i) => (
+                  <Alert key={i} variant="default">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{warning}</AlertDescription>
+                  </Alert>
+                ))}
               </div>}
 
             

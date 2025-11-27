@@ -36,6 +36,9 @@ export class MidiPlayer {
   private startTime = 0; // when playback started
   private pauseOffset = 0; // position when paused
 
+  // Instrument cache to avoid re-downloading
+  private static instrumentCache: Map<string, any> = new Map();
+
   constructor() {
     // Context will be initialized in initialize()
   }
@@ -88,11 +91,17 @@ export class MidiPlayer {
     }
 
     try {
-      const instrument = await Soundfont.instrument(
-        this.audioContext,
-        instrumentName as any,
-        { soundfont: 'MusyngKite' }
-      );
+      // Check cache first
+      let instrument = MidiPlayer.instrumentCache.get(instrumentName);
+      
+      if (!instrument) {
+        instrument = await Soundfont.instrument(
+          this.audioContext,
+          instrumentName as any,
+          { soundfont: 'MusyngKite' }
+        );
+        MidiPlayer.instrumentCache.set(instrumentName, instrument);
+      }
 
       const events = this.convertTrackToEvents(track, ppq, bpm);
 
@@ -253,21 +262,32 @@ export class MidiPlayer {
 
     this.pauseOffset = Math.max(0, Math.min(seconds, this.duration));
 
-    // Reset event indices to match the new position
+    // Reset event indices to match the new position using binary search
     this.tracks.forEach(track => {
-      track.nextEventIndex = 0;
-      // Find the first event after the seek position
-      while (
-        track.nextEventIndex < track.events.length &&
-        track.events[track.nextEventIndex].time < this.pauseOffset
-      ) {
-        track.nextEventIndex++;
-      }
+      track.nextEventIndex = this.findEventIndexAtTime(track.events, this.pauseOffset);
     });
 
     if (wasPlaying) {
       this.play();
     }
+  }
+
+  private findEventIndexAtTime(events: ScheduledEvent[], targetTime: number): number {
+    if (events.length === 0) return 0;
+    
+    let low = 0;
+    let high = events.length - 1;
+    
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (events[mid].time < targetTime) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    
+    return low;
   }
 
   setTrackMute(trackIndex: number, muted: boolean) {
