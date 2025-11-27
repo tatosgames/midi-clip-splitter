@@ -94,7 +94,17 @@ const Index = () => {
 
         {/* Footer */}
         <footer className="mt-16 text-center text-sm text-muted-foreground">
-          <p>Compatible with any hardware synth or DAW</p>
+          <p>
+            Made with 🤖❤️🎹 by{" "}
+            <a 
+              href="https://lucatronico.w.link/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              LucaTronico
+            </a>
+          </p>
         </footer>
       </div>
     </div>;
