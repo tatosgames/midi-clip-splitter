@@ -43,6 +43,19 @@ export function UploadPanel({
       onFileSelect(e.target.files[0]);
     }
   }, [onFileSelect]);
+
+  const handleLoadDemo = useCallback(async () => {
+    try {
+      const basePath = import.meta.env.PROD ? '/midi-clip-splitter' : '';
+      const response = await fetch(`${basePath}/demo.mid`);
+      if (!response.ok) throw new Error('Failed to load demo file');
+      const blob = await response.blob();
+      const file = new File([blob], 'demo.mid', { type: 'audio/midi' });
+      onFileSelect(file);
+    } catch (error) {
+      console.error('Failed to load demo file:', error);
+    }
+  }, [onFileSelect]);
   return <Card className="p-8">
       <div className={`
           border-2 border-dashed rounded-lg p-12 text-center transition-all duration-300
@@ -61,14 +74,24 @@ export function UploadPanel({
             
           </div>
 
-          <div className="relative">
-            <input type="file" accept=".mid,.midi" onChange={handleFileInput} className="hidden" id="file-input" disabled={isProcessing} />
-            <Button asChild size="lg" className="cursor-pointer" disabled={isProcessing}>
-              <label htmlFor="file-input">
-                <Upload className="w-5 h-5 mr-2" />
-                {isProcessing ? 'Processing...' : 'Select MIDI File'}
-              </label>
-            </Button>
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative">
+              <input type="file" accept=".mid,.midi" onChange={handleFileInput} className="hidden" id="file-input" disabled={isProcessing} />
+              <Button asChild size="lg" className="cursor-pointer" disabled={isProcessing}>
+                <label htmlFor="file-input">
+                  <Upload className="w-5 h-5 mr-2" />
+                  {isProcessing ? 'Processing...' : 'Select MIDI File'}
+                </label>
+              </Button>
+            </div>
+            
+            <button 
+              onClick={handleLoadDemo}
+              disabled={isProcessing}
+              className="text-sm text-muted-foreground hover:text-primary underline transition-colors disabled:opacity-50"
+            >
+              or try with a demo file
+            </button>
           </div>
         </div>
       </div>
